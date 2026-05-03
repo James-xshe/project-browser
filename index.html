@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Project Browser</title>
+<style>
+  :root {
+    --bg: #0d1117; --surface: #161b22; --border: #30363d;
+    --text: #e6edf3; --text2: #8b949e; --accent: #58a6ff;
+    --green: #3fb950; --orange: #d29922; --purple: #bc8cff;
+    --red: #f85149; --radius: 8px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+    background: var(--bg); color: var(--text); line-height: 1.5;
+    padding: 24px; max-width: 1200px; margin: 0 auto;
+  }
+  header { margin-bottom: 24px; }
+  header h1 { font-size: 24px; font-weight: 600; margin-bottom: 4px; }
+  header p { color: var(--text2); font-size: 14px; }
+  .controls {
+    display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center;
+  }
+  .search-box {
+    flex: 1; min-width: 200px; padding: 8px 12px; border-radius: var(--radius);
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    font-size: 14px; outline: none; transition: border-color 0.2s;
+  }
+  .search-box:focus { border-color: var(--accent); }
+  .search-box::placeholder { color: var(--text2); }
+  .sort-btn {
+    padding: 8px 14px; border-radius: var(--radius); border: 1px solid var(--border);
+    background: var(--surface); color: var(--text2); font-size: 13px; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .sort-btn:hover { border-color: var(--accent); color: var(--text); }
+  .sort-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(88,166,255,0.1); }
+  .stats {
+    color: var(--text2); font-size: 13px; margin-bottom: 16px;
+  }
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px;
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px; cursor: pointer; transition: all 0.2s; position: relative;
+  }
+  .card:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .card.expanded { grid-column: 1 / -1; cursor: default; }
+  .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+  .card-title { font-size: 16px; font-weight: 600; color: var(--text); }
+  .card-git { font-size: 12px; color: var(--green); }
+  .card-desc { color: var(--text2); font-size: 13px; margin-bottom: 10px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .card.expanded .card-desc { -webkit-line-clamp: unset; }
+  .card-meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 12px; color: var(--text2); }
+  .tag {
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    font-size: 11px; font-weight: 500;
+  }
+  .tag-python { background: rgba(53,114,165,0.2); color: #79c0ff; }
+  .tag-node, .tag-javascript, .tag-typescript { background: rgba(63,185,80,0.2); color: var(--green); }
+  .tag-react, .tag-vue { background: rgba(188,140,255,0.2); color: var(--purple); }
+  .tag-docker { background: rgba(210,153,34,0.2); color: var(--orange); }
+  .tag-go { background: rgba(0,173,216,0.2); color: #56d4dd; }
+  .tag-rust { background: rgba(222,165,132,0.2); color: #dea584; }
+  .tag-fastapi, .tag-flask, .tag-express, .tag-django { background: rgba(88,166,255,0.15); color: var(--accent); }
+  .tag-default { background: rgba(139,148,158,0.15); color: var(--text2); }
+  .meta-item { display: flex; align-items: center; gap: 4px; }
+  .meta-icon { font-size: 13px; }
+  .tree-container {
+    margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border);
+    display: none; max-height: 500px; overflow-y: auto;
+  }
+  .card.expanded .tree-container { display: block; }
+  .tree-title { font-size: 13px; font-weight: 600; color: var(--text2); margin-bottom: 8px; }
+  .tree { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 13px; }
+  .tree-item {
+    padding: 2px 0; display: flex; align-items: center; gap: 6px;
+    color: var(--text); white-space: nowrap;
+  }
+  .tree-item.dir { color: var(--accent); cursor: pointer; }
+  .tree-item.dir:hover { text-decoration: underline; }
+  .tree-item .tree-icon { width: 16px; text-align: center; flex-shrink: 0; }
+  .tree-item .tree-size { color: var(--text2); font-size: 11px; margin-left: auto; }
+  .tree-children { padding-left: 20px; }
+  .tree-toggle { display: none; }
+  .tree-children.collapsed { display: none; }
+  .card-path { font-size: 11px; color: var(--text2); font-family: monospace; margin-top: 4px; }
+  .close-btn {
+    position: absolute; top: 12px; right: 12px; background: none; border: none;
+    color: var(--text2); cursor: pointer; font-size: 18px; display: none;
+  }
+  .card.expanded .close-btn { display: block; }
+  .empty { text-align: center; color: var(--text2); padding: 60px 20px; font-size: 15px; }
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  /* responsive */
+  @media (max-width: 600px) {
+    body { padding: 12px; }
+    .grid { grid-template-columns: 1fr; }
+    .controls { flex-direction: column; }
+    .search-box { width: 100%; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>📂 Project Browser</h1>
+  <p id="subtitle">Loading...</p>
+</header>
+
+<div class="controls">
+  <input type="text" class="search-box" id="search" placeholder="搜索项目名称、描述、技术栈..." autocomplete="off">
+  <button class="sort-btn active" data-sort="name">名称</button>
+  <button class="sort-btn" data-sort="modified">最近修改</button>
+  <button class="sort-btn" data-sort="size">大小</button>
+</div>
+
+<div class="stats" id="stats"></div>
+<div class="grid" id="grid"></div>
+
+<script>
+let DATA = null;
+let currentSort = 'name';
+let searchQuery = '';
+
+async function loadData() {
+  try {
+    const resp = await fetch('data.json');
+    DATA = await resp.json();
+    document.getElementById('subtitle').textContent =
+      `${DATA.project_count} 个项目 · ${DATA.projects_dir} · 生成于 ${formatTime(DATA.generated_at)}`;
+    render();
+  } catch (e) {
+    document.getElementById('grid').innerHTML = '<div class="empty">❌ 无法加载 data.json<br>请先运行: python3 generate.py</div>';
+  }
+}
+
+function formatTime(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return d.toLocaleDateString('zh-CN') + ' ' + d.toLocaleTimeString('zh-CN', {hour:'2-digit', minute:'2-digit'});
+}
+
+function formatSize(kb) {
+  if (kb < 1024) return kb + ' KB';
+  return (kb / 1024).toFixed(1) + ' MB';
+}
+
+function timeAgo(iso) {
+  if (!iso) return '';
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 60) return mins + ' 分钟前';
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return hours + ' 小时前';
+  const days = Math.floor(hours / 24);
+  if (days < 30) return days + ' 天前';
+  const months = Math.floor(days / 30);
+  return months + ' 月前';
+}
+
+function tagHtml(tech) {
+  const cls = ['python','node','javascript','typescript','react','vue','docker',
+    'go','rust','fastapi','flask','express','django'].includes(tech) ? `tag-${tech}` : 'tag-default';
+  return `<span class="tag ${cls}">${tech}</span>`;
+}
+
+function renderTree(items, depth = 0) {
+  if (!items || items.length === 0) return '';
+  let html = '<div class="tree-children' + (depth > 0 ? ' collapsed' : '') + '">';
+  for (const item of items) {
+    if (item.type === 'dir') {
+      const hasChildren = item.children && item.children.length > 0;
+      html += `<div class="tree-item dir" onclick="toggleDir(this)">
+        <span class="tree-icon">📁</span>
+        <span>${item.name}/</span>
+      </div>`;
+      if (hasChildren) {
+        html += renderTree(item.children, depth + 1);
+      }
+    } else {
+      html += `<div class="tree-item">
+        <span class="tree-icon">${fileIcon(item.name)}</span>
+        <span>${item.name}</span>
+        <span class="tree-size">${formatSize(Math.round(item.size / 1024))}</span>
+      </div>`;
+    }
+  }
+  html += '</div>';
+  return html;
+}
+
+function fileIcon(name) {
+  const ext = name.split('.').pop().toLowerCase();
+  const icons = {
+    py: '🐍', js: '📜', ts: '📘', json: '📋', md: '📝', html: '🌐', css: '🎨',
+    yml: '⚙️', yaml: '⚙️', sh: '🔧', sql: '🗃️', go: '🔵', rs: '🦀', java: '☕',
+    vue: '💚', jsx: '⚛️', tsx: '⚛️', Dockerfile: '🐳', txt: '📄', xml: '📄',
+    jpg: '🖼️', png: '🖼️', gif: '🖼️', svg: '🖼️', lock: '🔒',
+  };
+  if (name === 'Dockerfile') return '🐳';
+  if (name === 'Makefile') return '🔨';
+  if (name === '.gitignore') return '🙈';
+  return icons[ext] || '📄';
+}
+
+function toggleDir(el) {
+  const children = el.nextElementSibling;
+  if (children && children.classList.contains('tree-children')) {
+    children.classList.toggle('collapsed');
+    el.querySelector('.tree-icon').textContent =
+      children.classList.contains('collapsed') ? '📁' : '📂';
+  }
+}
+
+function matchesQuery(p, q) {
+  if (!q) return true;
+  const s = (p.name + ' ' + p.description + ' ' + p.stack.join(' ') + ' ' + p.dir_name).toLowerCase();
+  return q.split(/\s+/).every(word => s.includes(word));
+}
+
+function render() {
+  if (!DATA) return;
+  let projects = DATA.projects.filter(p => matchesQuery(p, searchQuery));
+
+  // Sort
+  projects.sort((a, b) => {
+    if (currentSort === 'name') return a.name.localeCompare(b.name);
+    if (currentSort === 'modified') return (b.last_modified || '').localeCompare(a.last_modified || '');
+    if (currentSort === 'size') return b.size_kb - a.size_kb;
+    return 0;
+  });
+
+  // Stats
+  const totalSize = projects.reduce((s, p) => s + p.size_kb, 0);
+  const totalFiles = projects.reduce((s, p) => s + p.file_count, 0);
+  document.getElementById('stats').textContent =
+    `显示 ${projects.length}/${DATA.project_count} 个项目 · 共 ${totalFiles} 个文件 · ${formatSize(totalSize)}`;
+
+  // Grid
+  const grid = document.getElementById('grid');
+  if (projects.length === 0) {
+    grid.innerHTML = '<div class="empty">🔍 没有匹配的项目</div>';
+    return;
+  }
+
+  grid.innerHTML = projects.map(p => `
+    <div class="card" onclick="expandCard(this)" data-path="${p.path}">
+      <button class="close-btn" onclick="event.stopPropagation(); collapseCard(this.parentElement)">✕</button>
+      <div class="card-header">
+        <span class="card-title">${p.name}</span>
+        ${p.has_git ? '<span class="card-git">⎇ git</span>' : ''}
+      </div>
+      ${p.description ? `<div class="card-desc">${p.description}</div>` : ''}
+      <div class="card-meta">
+        ${p.stack.map(s => tagHtml(s)).join('')}
+        <span class="meta-item"><span class="meta-icon">📄</span>${p.file_count} 文件</span>
+        <span class="meta-item"><span class="meta-icon">💾</span>${formatSize(p.size_kb)}</span>
+        <span class="meta-item"><span class="meta-icon">🕐</span>${timeAgo(p.last_modified)}</span>
+      </div>
+      <div class="card-path">${p.path}</div>
+      <div class="tree-container">
+        <div class="tree-title">📁 文件结构</div>
+        <div class="tree">${renderTree(p.tree)}</div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function expandCard(card) {
+  // collapse others
+  document.querySelectorAll('.card.expanded').forEach(c => c.classList.remove('expanded'));
+  card.classList.add('expanded');
+  // expand top-level dirs
+  card.querySelectorAll('.tree-children').forEach((el, i) => {
+    if (i === 0) el.classList.remove('collapsed');
+  });
+  card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function collapseCard(card) {
+  card.classList.remove('expanded');
+}
+
+// Search
+document.getElementById('search').addEventListener('input', e => {
+  searchQuery = e.target.value.trim().toLowerCase();
+  render();
+});
+
+// Sort buttons
+document.querySelectorAll('.sort-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.sort-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentSort = btn.dataset.sort;
+    render();
+  });
+});
+
+// Click outside to collapse
+document.addEventListener('click', e => {
+  if (!e.target.closest('.card.expanded')) {
+    document.querySelectorAll('.card.expanded').forEach(c => c.classList.remove('expanded'));
+  }
+});
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    document.querySelectorAll('.card.expanded').forEach(c => c.classList.remove('expanded'));
+    document.getElementById('search').blur();
+  }
+  if (e.key === '/' && document.activeElement !== document.getElementById('search')) {
+    e.preventDefault();
+    document.getElementById('search').focus();
+  }
+});
+
+loadData();
+</script>
+</body>
+</html>

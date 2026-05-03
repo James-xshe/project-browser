@@ -1,0 +1,6 @@
+{
+  "name": "Project Browser",
+  "description": "轻量项目浏览器 — 扫描 ~/projects/ 生成静态 dashboard，快速查看所有项目概览和文件结构",
+  "stack": ["python", "html"],
+  "created": "2026-05-03"
+}
