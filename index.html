@@ -37,6 +37,16 @@
   }
   .sort-btn:hover { border-color: var(--accent); color: var(--text); }
   .sort-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(88,166,255,0.1); }
+  .refresh-btn {
+    padding: 8px 14px; border-radius: var(--radius); border: 1px solid var(--green);
+    background: rgba(63,185,80,0.1); color: var(--green); font-size: 13px; cursor: pointer;
+    transition: all 0.2s; display: flex; align-items: center; gap: 4px;
+  }
+  .refresh-btn:hover { background: rgba(63,185,80,0.2); }
+  .refresh-btn.loading { opacity: 0.6; cursor: wait; }
+  .refresh-btn .spin { display: inline-block; transition: transform 0.3s; }
+  .refresh-btn.loading .spin { animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
   .stats {
     color: var(--text2); font-size: 13px; margin-bottom: 16px;
   }
@@ -119,6 +129,7 @@
   <button class="sort-btn active" data-sort="name">名称</button>
   <button class="sort-btn" data-sort="modified">最近修改</button>
   <button class="sort-btn" data-sort="size">大小</button>
+  <button class="refresh-btn" id="refreshBtn" onclick="refreshData()"><span class="spin">🔄</span> 刷新</button>
 </div>
 
 <div class="stats" id="stats"></div>
@@ -322,6 +333,26 @@ document.addEventListener('keydown', e => {
     document.getElementById('search').focus();
   }
 });
+
+async function refreshData() {
+  const btn = document.getElementById('refreshBtn');
+  btn.classList.add('loading');
+  try {
+    const resp = await fetch('/api/refresh');
+    const result = await resp.json();
+    if (result.success) {
+      await loadData();
+      btn.style.borderColor = 'var(--green)';
+      setTimeout(() => btn.style.borderColor = '', 1000);
+    } else {
+      alert('刷新失败: ' + result.message);
+    }
+  } catch (e) {
+    alert('刷新失败: ' + e.message);
+  } finally {
+    btn.classList.remove('loading');
+  }
+}
 
 loadData();
 </script>
